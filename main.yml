@@ -1,0 +1,38 @@
+---
+- name: Install Winbind
+  apt:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - samba
+    - samba-common
+    - samba-client
+    - samba-winbind
+    
+- name: start and enable winbind
+  service: name={{item}} state='started' enabled='yes'
+  with_items:
+    - winbind
+    - samba
+    
+- name: Transfer the script
+  copy: src=/etc/ansible/test.sh dest=/tmp
+
+- name: Execute the script
+  command: sh /tmp/test.sh
+
+- name: "Update Kerberos configuration"
+  template:
+    src: "krb5.conf"
+    dest: "/etc/krb5.conf"
+  notify: restart samba
+
+- name: "Check domain status"
+  command: "wbinfo --own-domain"
+  register: "domain"
+
+- name: "Join domain"
+  command: "net join -U {{ winbind_domain_admin.user }}%{{ winbind_domain_admin.pass }}"
+  no_log: True
+  when: domain.stdout != winbind_workgroup
+
